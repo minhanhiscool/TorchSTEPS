@@ -1,8 +1,6 @@
-import pysteps
 from pysteps.visualization import plot_precip_field
 import matplotlib.pyplot as plt
-import numpy as np
-from datetime import datetime, time, timedelta
+from datetime import timedelta
 
 geodata = {
     "projection": "+proj=longlat +datum=WGS84",  # Assuming WGS84 projection
@@ -15,6 +13,15 @@ geodata = {
 
 
 def displayRadar(stack, title, timeS):
+    """
+    Display radar images in a matplotlib animation
+
+    Args:
+        stack (numpy.ndarray): A 3D array of radar images.
+        title (str): The title of the figure.
+        timeS (datetime): The time of the radar images.
+    """
+
     plt.axis("off")
 
     for i in stack:

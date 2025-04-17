@@ -5,6 +5,8 @@ import numpy as np
 from grabRadarSG import grabRadarSG
 from displayRadar import displayRadar
 
+
+# Maps color (RGB) in radar to rainfall intensity (mm/hr and dBR)
 color_to_rain = {
     (255, 0, 255): (150, 80),
     (212, 0, 170): (125, 77.5),
@@ -40,27 +42,66 @@ color_to_rain = {
 }
 
 
+def generateExpectedFilenames(initial_time, n_images=25, step_minutes=5):
+    """
+    Generate the expected filenames given different initial time and number of images
+
+    Args:
+        initial_time (datetime): The initial time of the radar data.
+        n_images (int, optional): The number of images to generate. Defaults to 25.
+        step_minutes (int, optional): The step in minutes between each image. Defaults to 5.
+
+    Returns:
+        list: A list of expected filenames.
+    """
+
+    images = []
+    for i in range(n_images):
+        image_time = initial_time + timedelta(minutes=i * step_minutes)
+        image_filename = (
+            f"dpsri_70km_{image_time.strftime('%Y%m%d%H%M%S')}00dBR.dpsri.png"
+        )
+        images.append(image_filename)
+    return images
+
+
 def loadRadar():
+    """
+    Load radar images from local directory and converts them to a numpy array
+    Images are pulled using grabRadarSG as PNG files.
+
+    Returns:
+        tuple: a tuple containing:
+            - np.ndarray: A 2D array of radar images.
+            - np.ndarray: A 2D array of rainfall images.
+            - dict: A dictionary mapping color (RGB) to rainfall intensity (mm/hr and dBR).
+            - datetime: The time of the radar images.
+
+    """
     initial_time = grabRadarSG()
-    # Path to your folder with PNG files
+    # Path to folder with radImg files
     png_folder = "../radImg/"
 
-    # Retrieve all PNG file paths and sort them chronologically
-    image_files = sorted(glob.glob(png_folder + "*.png"))
-
-    # Assuming images are recorded every 5 minutes, two hours of data equals 24 + 1 images.
-
-    # If you want the most recent two hours, select the last 25 images:
-    n_images = 25
-    two_hours_files = image_files[-n_images:]
-
-    # Load images as grayscale arrays (if your PNGs are color-coded you might need to convert using a color-to-rainfall lookup)
+    # Generate expected filenames of each radar imahe
+    images_filenames = generateExpectedFilenames(
+        initial_time, n_images=25, step_minutes=5
+    )
 
     radar_images = []
     rainfall_images = []
-    for img in two_hours_files:
+
+    # Loop through the images and convert them to numpy arrays
+    for img in images_filenames:
+        full_path = png_folder + img
+
+        # If file not found, print a warning
+        if glob.glob(full_path) == []:
+            print("!!! WARNING: Image not found: ", full_path)
+            continue
+
+        # COnvert image to an 3D numpy array
         img_array = np.array(Image.open(img).convert("RGB"))
-        print(img_array.shape)
+
         rainfall = np.zeros(
             (img_array.shape[0], img_array.shape[1]), dtype=np.float32()
         )
@@ -68,15 +109,17 @@ def loadRadar():
             (img_array.shape[0], img_array.shape[1]), dtype=np.float32()
         )
 
+        # Convert each pixel to a color and assign the corresponding intensity
         for (
             color,
             (rain, intensity),
         ) in color_to_rain.items():
-            mask = np.all(np.abs(img_array - np.array(color)) <= 10, axis=-1)
+            mask = np.all(
+                np.abs(img_array - np.array(color)) <= 10, axis=-1
+            )  # Use threshholds instead of exact values
             rainfall[mask] = rain
             radar_img[mask] = intensity
 
-        # Convert the rainfall values to grayscale
         rainfall_images.append(rainfall)
         radar_images.append(radar_img)
 
@@ -85,14 +128,13 @@ def loadRadar():
     rainfall_stack = np.stack(rainfall_images)
 
     # Optional: Display the last frame (the most recent image)
-
-    displayRadar(rainfall_stack, "Observed Rainfall", initial_time)
+    # displayRadar(rainfall_stack, "Observed Rainfall", initial_time)
 
     return (
         radar_stack,
         rainfall_stack,
         color_to_rain,
-        initial_time + timedelta(minutes=120),
+        initial_time + timedelta(minutes=20),
     )
 
 
