@@ -60,14 +60,24 @@ git checkout feature/my-branch
 > [!WARNING]
 > You should never push your changes to the main branch!
 
+## Data Usage
+This code can fetch and process data from the NEA website, which by its Terms of Use  
+(see https://www.nea.gov.sg/corporate-functions/terms-of-use) **may only** be used for **personal, internal, non‑commercial**  
+or **informational** purposes (Clause 4.3).
+
+**We do NOT distribute NEA’s data**. You must download it yourself:
+```
+python3 src/grabRadarSG.py
+```
+By running that, you confirm you’re using the data under NEA’s non‑commercial license.
+
+## Contributors
+
+See CONTRIBUTORS.md
+
 ## License
-Shield: [![CC BY-NC 4.0][cc-by-nc-shield]][cc-by-nc]
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+This project is licensed under the [MIT License](./LICENSE).
 
-This work is licensed under a
-[Creative Commons Attribution-NonCommercial 4.0 International License][cc-by-nc].
 
-[![CC BY-NC 4.0][cc-by-nc-image]][cc-by-nc]
 
-[cc-by-nc]: https://creativecommons.org/licenses/by-nc/4.0/
-[cc-by-nc-image]: https://licensebuttons.net/l/by-nc/4.0/88x31.png
-[cc-by-nc-shield]: https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg
