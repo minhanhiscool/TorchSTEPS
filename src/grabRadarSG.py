@@ -1,3 +1,9 @@
+# ----------------------------------------------------------------------------
+# # This module downloads/processes data from NEA (https://www.nea.gov.sg).
+# As per NEA Terms of Use, this data may only be used for non-commercial,
+# personal or research purposes. Do NOT redistribute NEA data.
+# ----------------------------------------------------------------------------
+
 import requests
 import random
 from datetime import datetime, timedelta
