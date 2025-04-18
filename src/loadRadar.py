@@ -89,6 +89,7 @@ def loadRadar():
 
     radar_images = []
     rainfall_images = []
+    COLOR_THRESHOLD = 10
 
     # Loop through the images and convert them to numpy arrays
     for img in images_filenames:
@@ -115,8 +116,8 @@ def loadRadar():
             (rain, intensity),
         ) in color_to_rain.items():
             mask = np.all(
-                np.abs(img_array - np.array(color)) <= 10, axis=-1
-            )  # Use threshholds instead of exact values
+                np.abs(img_array - np.array(color)) <= COLOR_THRESHOLD, axis=-1
+            )  # Use thresholds instead of exact values
             rainfall[mask] = rain
             radar_img[mask] = intensity
 
