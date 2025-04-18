@@ -60,6 +60,8 @@ git checkout feature/my-branch
 > [!WARNING]
 > You should never push your changes to the main branch!
 
+## License
+
 Shield: [![CC BY-NC-SA 4.0][cc-by-nc-sa-shield]][cc-by-nc-sa]
 
 This work is licensed under a
