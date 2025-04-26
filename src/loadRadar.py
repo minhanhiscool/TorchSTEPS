@@ -101,7 +101,7 @@ def loadRadar():
             continue
 
         # COnvert image to an 3D numpy array
-        img_array = np.array(Image.open(img).convert("RGB"))
+        img_array = np.array(Image.open(full_path).convert("RGB"))
 
         rainfall = np.zeros(
             (img_array.shape[0], img_array.shape[1]), dtype=np.float32()
