@@ -63,9 +63,14 @@ class ConvLSTM_Encoder_Decoder(nn.Module):
             bias,
             return_all_layers,
         )
-        self.conv_last = nn.Conv2d(
-            in_channels=hidden_dim[-1], out_channels=1, kernel_size=1, padding=0
-        )
+        if isinstance(hidden_dim, list):
+            self.conv_last = nn.Conv2d(
+                in_channels=hidden_dim[-1], out_channels=1, kernel_size=1, padding=0
+            )
+        elif isinstance(hidden_dim, int):
+            self.conv_last = nn.Conv2d(
+                in_channels=hidden_dim, out_channels=1, kernel_size=1, padding=0
+            )
         self.teacher_forcing_ratio = 0.4
 
     def forward(self, x, m1, m2, m3, ground_truth=None):
@@ -103,7 +108,7 @@ class ConvLSTM_Encoder_Decoder(nn.Module):
             if ground_truth is not None and torch.rand() < self.teacher_forcing_ratio:
                 prev = ground_truth[:, i]  # (B, 1, H, W)
             else:
-                prev = prev_pred.squeeze(1)  # (B, 1, H, W)
+                prev = prev_pred[:, 0]  # (B, 1, H, W)
 
             inp = torch.cat([f, prev], dim=1)  # (B, 4, H, W)
             inp = inp.unsqueeze(1)  # (B, 1, 4, H, W)
@@ -113,6 +118,6 @@ class ConvLSTM_Encoder_Decoder(nn.Module):
             pred = self.conv_last(h)
             output.append(pred.unsqueeze(1))
 
-            prev_pred = pred
+            prev_pred = pred.unsqueeze(1)
 
         return torch.cat(output, dim=1)
