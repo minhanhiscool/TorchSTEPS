@@ -63,14 +63,13 @@ class ConvLSTM_Encoder_Decoder(nn.Module):
             bias,
             return_all_layers,
         )
-        if isinstance(hidden_dim, list):
-            self.conv_last = nn.Conv2d(
-                in_channels=hidden_dim[-1], out_channels=1, kernel_size=1, padding=0
-            )
-        elif isinstance(hidden_dim, int):
-            self.conv_last = nn.Conv2d(
-                in_channels=hidden_dim, out_channels=1, kernel_size=1, padding=0
-            )
+        in_ch = hidden_dim[-1] if isinstance(hidden_dim, list) else hidden_dim
+        self.conv_last = nn.Conv2d(
+            in_ch, out_channels=1, kernel_size=1, padding=0, bias=True
+        )
+        if bias:
+            nn.init.zeros_(self.conv_last.bias)
+
         self.teacher_forcing_ratio = 0.4
 
     def forward(self, x, m1, m2, m3, ground_truth=None):
@@ -89,24 +88,28 @@ class ConvLSTM_Encoder_Decoder(nn.Module):
         Returns:
             Tensor: Output tensor of shape (B, T_out, 1, H, W)
         """
+        device = x.device
 
         B, T_out, _, H, W = m1.shape  # (B, T_out, 1, H, W)
         _, last_states = self.encoder(x)
 
         # last_states has list of size T_in, each element is a tuple of hidden state and cell state
 
-        prev_pred = torch.zeros((B, 1, 1, H, W), device=x.device)  # (B, 1, 1, H, W)
+        prev_pred = torch.zeros((B, 1, 1, H, W), device=device)  # (B, 1, 1, H, W)
         dec_states = last_states
         output = []
         for i in range(T_out):
-            f1 = m1[:, i]  # (B, 1, H, W)
-            f2 = m2[:, i]  # (B, 1, H, W)
-            f3 = m3[:, i]  # (B, 1, H, W)
+            f1 = m1[:, i].to(device)  # (B, 1, H, W)
+            f2 = m2[:, i].to(device)  # (B, 1, H, W)
+            f3 = m3[:, i].to(device)  # (B, 1, H, W)
 
             f = torch.cat([f1, f2, f3], dim=1)  # (B, 3, H, W)
 
-            if ground_truth is not None and torch.rand() < self.teacher_forcing_ratio:
-                prev = ground_truth[:, i]  # (B, 1, H, W)
+            if (
+                ground_truth is not None
+                and torch.rand(1).item() < self.teacher_forcing_ratio
+            ):
+                prev = ground_truth[:, i].to(device)  # (B, 1, H, W)
             else:
                 prev = prev_pred[:, 0]  # (B, 1, H, W)
 

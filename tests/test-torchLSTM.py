@@ -1,5 +1,16 @@
 import torch
+import torch.nn.functional as F
 from torchLSTM import ConvLSTM_Encoder_Decoder
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def resize_batch(x, H_out=512, W_out=512):
+    # x: (B, T, C, H_in, W_in)
+    B, T, C, H, W = x.shape
+    x = x.view(B * T, C, H, W)
+    x = F.interpolate(x, size=(H_out, W_out), mode="bilinear", align_corners=False)
+    return x.view(B, T, C, H_out, W_out)
 
 
 def test_forward_output_shape():
@@ -8,17 +19,18 @@ def test_forward_output_shape():
     model = ConvLSTM_Encoder_Decoder(
         input_dim=C, hidden_dim=[16, 16], kernel_size=[(3, 3), (3, 3)]
     )
+    model = model.to(device)
     model.eval()
 
-    x = torch.randn(B, T_in, C, H, W)
-    m1 = torch.randn(B, T_out, 1, H, W)
-    m2 = torch.randn(B, T_out, 1, H, W)
-    m3 = torch.randn(B, T_out, 1, H, W)
+    x = resize_batch(torch.randn(B, T_in, C, H, W).to(device))
+    m1 = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
+    m2 = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
+    m3 = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
 
     with torch.no_grad():
         out = model(x, m1, m2, m3)
 
-    assert out.shape == (B, T_out, 1, H, W)
+    assert out.shape == (B, T_out, 1, 512, 512)
 
 
 def test_non_zero_output():
@@ -26,12 +38,13 @@ def test_non_zero_output():
     model = ConvLSTM_Encoder_Decoder(
         input_dim=C, hidden_dim=[16, 16], kernel_size=[(3, 3), (3, 3)]
     )
+    model = model.to(device)
     model.eval()
 
-    x = torch.randn(B, T_in, C, H, W)
-    m1 = torch.randn(B, T_out, 1, H, W)
-    m2 = torch.randn(B, T_out, 1, H, W)
-    m3 = torch.randn(B, T_out, 1, H, W)
+    x = resize_batch(torch.randn(B, T_in, C, H, W).to(device))
+    m1 = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
+    m2 = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
+    m3 = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
 
     with torch.no_grad():
         out = model(x, m1, m2, m3)
@@ -44,13 +57,14 @@ def test_teacher_forcing_behavior():
     model = ConvLSTM_Encoder_Decoder(
         input_dim=C, hidden_dim=[16, 16], kernel_size=[(3, 3), (3, 3)]
     )
+    model = model.to(device)
     model.eval()
 
-    x = torch.randn(B, T_in, C, H, W)
-    m1 = torch.randn(B, T_out, 1, H, W)
-    m2 = torch.randn(B, T_out, 1, H, W)
-    m3 = torch.randn(B, T_out, 1, H, W)
-    ground_truth = torch.randn(B, T_out, 1, H, W)
+    x = resize_batch(torch.randn(B, T_in, C, H, W).to(device))
+    m1 = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
+    m2 = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
+    m3 = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
+    ground_truth = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
 
     # With teacher forcing (ground_truth is provided)
     out_with_teacher_forcing = model(x, m1, m2, m3, ground_truth=ground_truth)
@@ -70,18 +84,19 @@ def test_variable_input_size():
         model = ConvLSTM_Encoder_Decoder(
             input_dim=C, hidden_dim=[16, 16], kernel_size=[(3, 3), (3, 3)]
         )
+        model = model.to(device)
         model.eval()
 
-        x = torch.randn(B, T_in, C, H, W)
-        m1 = torch.randn(B, T_out, 1, H, W)
-        m2 = torch.randn(B, T_out, 1, H, W)
-        m3 = torch.randn(B, T_out, 1, H, W)
+        x = resize_batch(torch.randn(B, T_in, C, H, W).to(device))
+        m1 = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
+        m2 = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
+        m3 = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
 
         with torch.no_grad():
             out = model(x, m1, m2, m3)
 
-        assert out.shape == (B, T_out, 1, H, W), (
-            f"Failed for input size {H}x{W}. Expected shape (B, T_out, 1, H, W), got {out.shape}"
+        assert out.shape == (B, T_out, 1, 512, 512), (
+            f"Failed for input size {H}x{W}. Expected shape (B, T_out, 1, 512, 512), got {out.shape}"
         )
 
 
@@ -90,14 +105,16 @@ def test_gradients_propagation():
     model = ConvLSTM_Encoder_Decoder(
         input_dim=C, hidden_dim=[16, 16], kernel_size=[(3, 3), (3, 3)]
     )
+    model = model.to(device)
     model.train()  # Ensure we are in training mode
 
-    x = torch.randn(B, T_in, C, H, W, requires_grad=True)
-    m1 = torch.randn(B, T_out, 1, H, W)
-    m2 = torch.randn(B, T_out, 1, H, W)
-    m3 = torch.randn(B, T_out, 1, H, W)
+    x = torch.randn(B, T_in, C, H, W, requires_grad=True).to(device)
+    x_in = resize_batch(x)
+    m1 = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
+    m2 = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
+    m3 = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
 
-    out = model(x, m1, m2, m3)
+    out = model(x_in, m1, m2, m3)
 
     # Check gradients
     out.sum().backward()
@@ -110,12 +127,13 @@ def test_memory_usage():
         model = ConvLSTM_Encoder_Decoder(
             input_dim=C, hidden_dim=[16, 16], kernel_size=[(3, 3), (3, 3)]
         )
+        model = model.to(device)
         model.eval()
 
-        x = torch.randn(B, T_in, C, H, W)
-        m1 = torch.randn(B, T_out, 1, H, W)
-        m2 = torch.randn(B, T_out, 1, H, W)
-        m3 = torch.randn(B, T_out, 1, H, W)
+        x = resize_batch(torch.randn(B, T_in, C, H, W).to(device))
+        m1 = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
+        m2 = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
+        m3 = resize_batch(torch.randn(B, T_out, 1, H, W).to(device))
 
         with torch.no_grad():
             out = model(x, m1, m2, m3)
@@ -134,17 +152,18 @@ def test_edge_case_with_zeros():
     model = ConvLSTM_Encoder_Decoder(
         input_dim=C, hidden_dim=[16, 16], kernel_size=[(3, 3), (3, 3)]
     )
+    model = model.to(device)
     model.eval()
 
-    x = torch.zeros(B, T_in, C, H, W)
-    m1 = torch.zeros(B, T_out, 1, H, W)
-    m2 = torch.zeros(B, T_out, 1, H, W)
-    m3 = torch.zeros(B, T_out, 1, H, W)
+    x = resize_batch(torch.zeros(B, T_in, C, H, W).to(device))
+    m1 = resize_batch(torch.zeros(B, T_out, 1, H, W).to(device))
+    m2 = resize_batch(torch.zeros(B, T_out, 1, H, W).to(device))
+    m3 = resize_batch(torch.zeros(B, T_out, 1, H, W).to(device))
 
     with torch.no_grad():
         out = model(x, m1, m2, m3)
 
-    assert out.shape == (B, T_out, 1, H, W), (
-        f"Expected shape (B, T_out, 1, H, W), but got {out.shape}"
+    assert out.shape == (B, T_out, 1, 512, 512), (
+        f"Expected shape (B, T_out, 1, 512, 512), but got {out.shape}"
     )
     assert torch.all(out == 0), "Expected output to be zero when input is all zeros"
