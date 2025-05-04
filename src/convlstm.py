@@ -137,6 +137,9 @@ class ConvLSTM(nn.Module):
         for i in range(0, self.num_layers):
             cur_input_dim = self.input_dim if i == 0 else self.hidden_dim[i - 1]
 
+            if i == 1:
+                cur_input_dim += 3
+
             cell_list.append(
                 ConvLSTMCell(
                     input_dim=cur_input_dim,
@@ -148,7 +151,7 @@ class ConvLSTM(nn.Module):
 
         self.cell_list = nn.ModuleList(cell_list)
 
-    def forward(self, input_tensor, hidden_state=None):
+    def forward(self, input_tensor, aux_tensor=None, hidden_state=None):
         """
 
         Parameters
@@ -157,6 +160,8 @@ class ConvLSTM(nn.Module):
             5-D Tensor either of shape (t, b, c, h, w) or (b, t, c, h, w)
         hidden_state: todo
             None. todo implement stateful
+        aux_tensor:
+            5D Tensor with same shape as input_tensor
 
         Returns
         -------
@@ -179,13 +184,19 @@ class ConvLSTM(nn.Module):
         seq_len = input_tensor.size(1)
         cur_layer_input = input_tensor
 
+        if aux_tensor is None:
+            aux_tensor = torch.zeros(b, seq_len, 3, h, w)
+
         for layer_idx in range(self.num_layers):
             h, c = hidden_state[layer_idx]
             output_inner = []
             for t in range(seq_len):
-                h, c = self.cell_list[layer_idx](
-                    input_tensor=cur_layer_input[:, t, :, :, :], cur_state=[h, c]
-                )
+                x = cur_layer_input[:, t, :, :, :]
+
+                if layer_idx == 1:
+                    x = torch.cat((x, aux_tensor[:, t, :, :, :]), dim=1)
+
+                h, c = self.cell_list[layer_idx](input_tensor=x, cur_state=[h, c])
                 output_inner.append(h)
 
             layer_output = torch.stack(output_inner, dim=1)

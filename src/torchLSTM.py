@@ -19,8 +19,6 @@ class ConvLSTM_Encoder_Decoder(nn.Module):
         teacher_forcing_ratio (float): Probability of using ground truth as input at each time step
     """
 
-    # TODO: Add intermediate fusion to the model
-
     def __init__(
         self,
         input_dim,
@@ -104,6 +102,7 @@ class ConvLSTM_Encoder_Decoder(nn.Module):
             f3 = m3[:, i].to(device)  # (B, 1, H, W)
 
             f = torch.cat([f1, f2, f3], dim=1)  # (B, 3, H, W)
+            f_expanded = f.unsqueeze(1)  # (B, 1, 3, H, W)
 
             if (
                 ground_truth is not None
@@ -116,7 +115,7 @@ class ConvLSTM_Encoder_Decoder(nn.Module):
             inp = torch.cat([f, prev], dim=1)  # (B, 4, H, W)
             inp = inp.unsqueeze(1)  # (B, 1, 4, H, W)
 
-            y, dec_states = self.decoder(inp, dec_states)
+            y, dec_states = self.decoder(inp, f_expanded, dec_states)
             h = y[0].squeeze(1)
             pred = self.conv_last(h)
             output.append(pred.unsqueeze(1))
