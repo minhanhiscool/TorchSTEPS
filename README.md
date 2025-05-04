@@ -4,7 +4,7 @@
 
 ## Overview
 
-This code uses Convolutional LSTM (ConvLSTM), which is specified in this [paper](https://arxiv.org/pdf/1506.04214v2) (We are using the [PyTorch implementation](https://github.com/ndrplz/ConvLSTM_pytorch) of the ConvLSTM paper) to predict the weather using the past 20 minutes of raw radar data and estimates of three classical models (Extrapolation, STEPS, and ANVIL)
+This code uses Convolutional LSTM (ConvLSTM), which is specified in this [paper](https://arxiv.org/pdf/1506.04214v2) (We are using the modified [PyTorch implementation](https://github.com/ndrplz/ConvLSTM_pytorch) of the ConvLSTM paper) to predict the weather using the past 20 minutes of raw radar data and estimates of three classical models (Extrapolation, STEPS, and ANVIL)
 
 ## Requirements
 

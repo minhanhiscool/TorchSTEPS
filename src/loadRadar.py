@@ -1,4 +1,5 @@
 import glob
+import sys
 from datetime import timedelta
 from PIL import Image
 import numpy as np
@@ -80,7 +81,8 @@ def loadRadar():
     """
     initial_time = grabRadarSG()
     # Path to folder with radImg files
-    png_folder = "../radImg/"
+    venv_path = sys.prefix
+    png_folder = venv_path + "/../radImg/"
 
     # Generate expected filenames of each radar imahe
     images_filenames = generateExpectedFilenames(
