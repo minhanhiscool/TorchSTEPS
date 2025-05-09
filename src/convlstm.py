@@ -2,6 +2,25 @@ import torch.nn as nn
 import torch
 
 
+class PixelGating(nn.Module):
+    def __init__(self, n_experts):
+        super(PixelGating, self).__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(n_experts, 16, 3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(16, n_experts, 1),
+        )
+        self.sm = nn.Softmax(dim=1)
+        self.proj = nn.Conv2d(19, 16, 1)
+
+    def forward(self, x):
+        logits = self.net(x)
+        weights = self.sm(logits)
+        gated = x * weights
+        fused = self.proj(gated)
+        return fused, weights
+
+
 class ConvLSTMCell(nn.Module):
     def __init__(self, input_dim, hidden_dim, kernel_size, bias):
         """
@@ -136,10 +155,6 @@ class ConvLSTM(nn.Module):
         cell_list = []
         for i in range(0, self.num_layers):
             cur_input_dim = self.input_dim if i == 0 else self.hidden_dim[i - 1]
-
-            if i == 1:
-                cur_input_dim += 3
-
             cell_list.append(
                 ConvLSTMCell(
                     input_dim=cur_input_dim,
@@ -150,6 +165,7 @@ class ConvLSTM(nn.Module):
             )
 
         self.cell_list = nn.ModuleList(cell_list)
+        self.fusion = PixelGating(n_experts=19)
 
     def forward(self, input_tensor, aux_tensor=None, hidden_state=None):
         """
@@ -195,6 +211,7 @@ class ConvLSTM(nn.Module):
 
                 if layer_idx == 1:
                     x = torch.cat((x, aux_tensor[:, t, :, :, :]), dim=1)
+                    x, weights = self.fusion(x)
 
                 h, c = self.cell_list[layer_idx](input_tensor=x, cur_state=[h, c])
                 output_inner.append(h)

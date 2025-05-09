@@ -14,7 +14,7 @@ def resize_batch(x, H_out=512, W_out=512):
 
 
 def test_forward_output_shape():
-    B, T_in, T_out, C, H, W = 1, 4, 18, 1, 1219, 1196
+    B, T_in, T_out, C, H, W = 1, 6, 18, 1, 1219, 1196
 
     model = ConvLSTM_Encoder_Decoder(
         input_dim=C, hidden_dim=[16, 16], kernel_size=[(3, 3), (3, 3)]
@@ -34,7 +34,7 @@ def test_forward_output_shape():
 
 
 def test_non_zero_output():
-    B, T_in, T_out, C, H, W = 1, 4, 18, 1, 1219, 1196
+    B, T_in, T_out, C, H, W = 1, 6, 18, 1, 1219, 1196
     model = ConvLSTM_Encoder_Decoder(
         input_dim=C, hidden_dim=[16, 16], kernel_size=[(3, 3), (3, 3)]
     )
@@ -53,7 +53,7 @@ def test_non_zero_output():
 
 
 def test_teacher_forcing_behavior():
-    B, T_in, T_out, C, H, W = 1, 4, 18, 1, 1219, 1196
+    B, T_in, T_out, C, H, W = 1, 6, 18, 1, 1219, 1196
     model = ConvLSTM_Encoder_Decoder(
         input_dim=C, hidden_dim=[16, 16], kernel_size=[(3, 3), (3, 3)]
     )
@@ -80,7 +80,7 @@ def test_teacher_forcing_behavior():
 
 def test_variable_input_size():
     for H, W in [(1219, 1196), (256, 256), (512, 512)]:
-        B, T_in, T_out, C = 1, 4, 18, 1
+        B, T_in, T_out, C = 1, 6, 18, 1
         model = ConvLSTM_Encoder_Decoder(
             input_dim=C, hidden_dim=[16, 16], kernel_size=[(3, 3), (3, 3)]
         )
@@ -101,7 +101,7 @@ def test_variable_input_size():
 
 
 def test_gradients_propagation():
-    B, T_in, T_out, C, H, W = 1, 4, 18, 1, 1219, 1196
+    B, T_in, T_out, C, H, W = 1, 6, 18, 1, 1219, 1196
     model = ConvLSTM_Encoder_Decoder(
         input_dim=C, hidden_dim=[16, 16], kernel_size=[(3, 3), (3, 3)]
     )
@@ -123,7 +123,7 @@ def test_gradients_propagation():
 
 def test_memory_usage():
     try:
-        B, T_in, T_out, C, H, W = 1, 4, 18, 1, 1219, 1196
+        B, T_in, T_out, C, H, W = 1, 6, 18, 1, 1219, 1196
         model = ConvLSTM_Encoder_Decoder(
             input_dim=C, hidden_dim=[16, 16], kernel_size=[(3, 3), (3, 3)]
         )
@@ -148,7 +148,7 @@ def test_memory_usage():
 
 
 def test_edge_case_with_zeros():
-    B, T_in, T_out, C, H, W = 1, 4, 18, 1, 1219, 1196
+    B, T_in, T_out, C, H, W = 1, 6, 18, 1, 1219, 1196
     model = ConvLSTM_Encoder_Decoder(
         input_dim=C, hidden_dim=[16, 16], kernel_size=[(3, 3), (3, 3)]
     )

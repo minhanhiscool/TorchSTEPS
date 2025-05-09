@@ -1,7 +1,6 @@
 from datetime import datetime
-from unittest.mock import patch
 import numpy as np
-from loadRadar import generateExpectedFilenames, loadRadar, color_to_rain
+from pySTEPS.loadRadar import generateExpectedFilenames, loadRadar, color_to_rain
 
 
 # Test for generateExpectedFilenames
@@ -21,13 +20,12 @@ def test_generateExpectedFilenames():
 
 
 # Test for loadRadar
-@patch("loadRadar.grabRadarSG")  # Mock grabRadarSG
-def test_loadRadar(mock_grabRadarSG):
+def test_loadRadar():
     # Set mock behaviors
-    mock_grabRadarSG.return_value = datetime(2025, 4, 26, 11, 30, 0)
+    init_time = datetime(2025, 4, 26, 11, 30, 0)
 
     # Create a mock image object with RGB data
-    radar_stack, rainfall_stack, color_map, radar_time = loadRadar()
+    radar_stack, rainfall_stack, color_map, radar_time = loadRadar(init_time)
 
     # Check if the radar_stack and rainfall_stack have correct shape
     assert radar_stack.shape == (25, 1196, 1219)

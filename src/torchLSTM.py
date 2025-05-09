@@ -34,8 +34,8 @@ class ConvLSTM_Encoder_Decoder(nn.Module):
 
         Args:
             input_dim (int): Number of input channels in the input sequence
-            hidden_dim (int): Number of hidden channels in each ConvLSTM cell
-            kerner_size (int or List[int]): Size of the convolutional kernel in each ConvLSTM cell
+            hidden_dim (int or List[int]): Number of hidden channels in each ConvLSTM cell
+            kernel_size (tuple or List[tuple]): Size of the convolutional kernel in each ConvLSTM cell
             num_layers (int): Number of ConvLSTM cells in the model, default is 2
             batch_first (bool): If set to true, input tensor is in the shape of (B, T, C, H, W) instead of (T, B, C, H, W), default is True
             bias (bool): Whether or not to add the bias to the ConvLSTM cell, default is True
@@ -116,6 +116,7 @@ class ConvLSTM_Encoder_Decoder(nn.Module):
             inp = inp.unsqueeze(1)  # (B, 1, 4, H, W)
 
             y, dec_states = self.decoder(inp, f_expanded, dec_states)
+            dec_states = [(h.detach(), c.detach()) for h, c in dec_states]
             h = y[0].squeeze(1)
             pred = self.conv_last(h)
             output.append(pred.unsqueeze(1))

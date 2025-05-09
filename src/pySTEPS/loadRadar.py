@@ -3,8 +3,7 @@ import sys
 from datetime import timedelta
 from PIL import Image
 import numpy as np
-from grabRadarSG import grabRadarSG
-from displayRadar import displayRadar
+from pySTEPS.displayRadar import displayRadar
 
 
 # Maps color (RGB) in radar to rainfall intensity (mm/hr and dBR)
@@ -66,28 +65,28 @@ def generateExpectedFilenames(initial_time, n_images=25, step_minutes=5):
     return images
 
 
-def loadRadar():
+def loadRadar(initial_time, n_images=6):
     """
     Load radar images from local directory and converts them to a numpy array
     Images are pulled using grabRadarSG as PNG files.
+
+    Args:
+        initial_time (datetime): The initial time of the radar data.
+        n_images (int, optional): The number of images to load. Defaults to 8.
 
     Returns:
         tuple: a tuple containing:
             - np.ndarray: A 2D array of radar images.
             - np.ndarray: A 2D array of rainfall images.
-            - dict: A dictionary mapping color (RGB) to rainfall intensity (mm/hr and dBR).
             - datetime: The time of the radar images.
 
     """
-    initial_time = grabRadarSG()
     # Path to folder with radImg files
     venv_path = sys.prefix
     png_folder = venv_path + "/../radImg/"
 
     # Generate expected filenames of each radar imahe
-    images_filenames = generateExpectedFilenames(
-        initial_time, n_images=25, step_minutes=5
-    )
+    images_filenames = generateExpectedFilenames(initial_time, n_images, step_minutes=5)
 
     radar_images = []
     rainfall_images = []
@@ -136,8 +135,7 @@ def loadRadar():
     return (
         radar_stack,
         rainfall_stack,
-        color_to_rain,
-        initial_time + timedelta(minutes=20),
+        initial_time + timedelta(minutes=n_images * 5),
     )
 
 
