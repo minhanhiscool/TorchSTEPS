@@ -1,108 +1,144 @@
 from torchLSTM import ConvLSTM_Encoder_Decoder
-from pySTEPS.loadRadar import loadRadar
-from pySTEPS.tradPred import tradPred
-from matplotlib import pyplot as plt
+import os
 import torch
-import numpy as np
-import random
-import torch.nn.functional as F
+from torch.utils.data import DataLoader
 from torch import nn, optim
-from datetime import datetime, timedelta
+from misc import random_time
+from dataset import RadarDataset
+from torch.utils.tensorboard import SummaryWriter
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def resize_batch(x, H_out=512, W_out=512):
+def train(B, T_in, T_out, C, H, W, num_epoch=1000):
     """
-    Takes a batch of input data of shape (B, T, C, H_in, W_in) and resizes it to (B, T, C, H_out, W_out)
-    Typically H_out and W_out are 512
+    Training Loop for torchLSTM
+    The training loop is a for loop that iterates over the number of epochs given
+    It loads using dataset.py the train and validation datasets (see dataset.py for further info)
+
+    Then trains the model using the dataset given
 
     Args:
-        x (torch.Tensor): Input data of shape (B, T, C, H_in, W_in)
-        H_out (int, optional): Height of the output tensor. Defaults to 512.
-        W_out (int, optional): Width of the output tensor. Defaults to 512.
-
-    Returns:
-        torch.Tensor: Resized input data of shape (B, T, C, H_out, W_out):
+        B (int): Batch size
+        T_in (int): Input sequence length
+        T_out (int): Output sequence length
+        C (int): Input channel
+        H (int): Height of the input
+        W (int): Width of the input
+        num_epoch (int, optional): Number of epochs. Defaults to 1000.
     """
-    # x: (B, T, C, H_in, W_in)
-    B, T, C, H, W = x.shape
-    x = x.view(B * T, C, H, W)
-    x = F.interpolate(x, size=(H_out, W_out), mode="bilinear", align_corners=False)
-    return x.view(B, T, C, H_out, W_out)
 
-
-def random_time():
-    """
-    Produces a random time between 2025-04-16 13:45 and 2025-04-26 10:15
-
-    Returns:
-        datetime: A random datetime between 2025-04-16 13:45 and 2025-04-26 10:15
-    """
-    start_time = datetime(2025, 4, 16, 13, 45)
-    end_time = datetime(2025, 4, 26, 10, 15)
-
-    delta = timedelta(minutes=5)
-    num_steps = int((end_time - start_time) / delta)
-
-    random_step = random.randint(0, num_steps - 1)
-    random_time = start_time + random_step * delta
-
-    return random_time
-
-
-def train(B, T_in, T_out, C, H, W):
+    # The model in question
     model = ConvLSTM_Encoder_Decoder(
         input_dim=C, hidden_dim=[16, 16], kernel_size=[(3, 3), (3, 3)]
     )
     model = model.to(device)
 
-    # Initializes lists of NumPy Arrays, which will be condensed to Tensors
-    x_stack = np.empty((B, T_in, H, W))
-    precip_extrapolation_stack = np.empty((B, T_out, H, W))
-    precip_anvil_stack = np.empty((B, T_out, H, W))
-    precip_steps_mean_stack = np.empty((B, T_out, H, W))
-    ground_truth_stack = np.empty((B, T_out, H, W))
-
-    for i in range(B):
-        init_time = random_time()
-        training_data, precip_extrapolation, precip_anvil, precip_steps_mean = tradPred(
-            init_time
-        )  # (T_in/T_out, H, W)
-        _, ground_truth, _ = loadRadar(
-            init_time + timedelta(minutes=T_in * 5), n_images=T_out
-        )  # (T_out, H, W)
-
-        x_stack[i] = training_data
-        precip_extrapolation_stack[i] = precip_extrapolation
-        precip_anvil_stack[i] = precip_anvil
-        precip_steps_mean_stack[i] = precip_steps_mean
-        ground_truth_stack[i] = ground_truth
-
-    # Condense all arrays to Tensors, ready for forward pass
-    x = resize_batch(torch.tensor(x_stack).unsqueeze(2).float().to(device))
-    m1 = resize_batch(
-        torch.tensor(precip_extrapolation_stack).unsqueeze(2).float().to(device)
+    # Defines all of the juicy stuff for training
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    criterion = nn.MSELoss()
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="min", factor=0.5, patience=5, verbose=True
     )
-    m2 = resize_batch(torch.tensor(precip_anvil_stack).unsqueeze(2).float().to(device))
-    m3 = resize_batch(
-        torch.tensor(precip_steps_mean_stack).unsqueeze(2).float().to(device)
-    )
-    ground_truth = resize_batch(
-        torch.tensor(ground_truth_stack).unsqueeze(2).float().to(device)
-    )
-    # By this point, all tensors should have a size (B, T_out/T_in, 1/C, 512, 512)
 
-    out = model(x, m1, m2, m3, ground_truth)
+    # Generates a random time for the train and validation datasets
+    all_times = [random_time() for _ in range(500)]
+    train_times, val_times = all_times[:400], all_times[400:]
 
-    for t in range(T_out):
-        plt.figure(figsize=(10, 10))
-        plt.imshow(out[0, t, 0].cpu().detach().numpy())
-        plt.title(f"Predicted Precipitation at Time {t * 5} minutes")
-        plt.axis("off")
-        plt.colorbar()
-        plt.show()
+    # Defines the dataset
+    train_dataset = RadarDataset(train_times, T_in, T_out)
+    val_dataset = RadarDataset(val_times, T_in, T_out)
+
+    # Loads data for training and validating
+    train_loader = DataLoader(train_dataset, batch_size=B, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=B, shuffle=False)
+
+    # Misc stuff, like defining TensorBoard and save directories
+    writer = SummaryWriter(log_dir="../runs")
+    model_dir = "../models/"
+    os.makedirs(model_dir, exist_ok=True)
+
+    best_val_loss = float("inf")
+
+    # Core of the function
+    for epoch in range(num_epoch):
+        model.train()  # Sets the model in training mode
+
+        # Defines loss
+        train_loss = 0.0
+        val_loss = 0.0
+
+        # Iterates over the training data
+        for x, m1, m2, m3, ground_truth in train_loader:
+            # Prepare data for final time to feed into ConvLSTM_Encoder_Decoder
+            x, m1, m2, m3, ground_truth = (
+                x.to(device),
+                m1.to(device),
+                m2.to(device),
+                m3.to(device),
+                ground_truth.to(device),
+            )
+            torch.nan_to_num(input=m1, nan=0.0, out=m1)
+            torch.nan_to_num(input=m2, nan=0.0, out=m2)
+            torch.nan_to_num(input=m3, nan=0.0, out=m3)
+
+            # Forward pass
+            out = model(x, m1, m2, m3, ground_truth)
+
+            # Calculate loss
+            loss = criterion(out, ground_truth)
+
+            # Backprop the model
+            optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+
+            train_loss += loss.item()
+
+        model.eval()  # Sets the model in evaluation mode
+        with torch.no_grad():
+            for x, m1, m2, m3, ground_truth in val_loader:
+                # Prepare data
+                x, m1, m2, m3, ground_truth = (
+                    x.to(device),
+                    m1.to(device),
+                    m2.to(device),
+                    m3.to(device),
+                    ground_truth.to(device),
+                )
+                torch.nan_to_num(input=m1, nan=0.0, out=m1)
+                torch.nan_to_num(input=m2, nan=0.0, out=m2)
+                torch.nan_to_num(input=m3, nan=0.0, out=m3)
+
+                # Forward pass and calculate loss
+                out = model(x, m1, m2, m3)
+                loss = criterion(out, ground_truth)
+                val_loss += loss.item()
+
+        # Get the average loss
+        train_loss /= len(train_loader)
+        val_loss /= len(val_loader)
+
+        # Log the losses
+        writer.add_scalar("Training Loss", train_loss, epoch)
+        writer.add_scalar("Validation Loss", val_loss, epoch)
+
+        # Fallback if TensorBoard doesn't work
+        print(
+            f"Epoch {epoch}/{num_epoch} | Training Loss: {train_loss} | Validation Loss: {val_loss}"
+        )
+
+        for param_group in optimizer.param_groups:
+            writer.add_scalar("Learning Rate", param_group["lr"], epoch)
+
+        # Found best model? Save it!
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            torch.save(model.state_dict(), model_dir + "best_model.pt")
+
+        scheduler.step(val_loss)
 
 
 if __name__ == "__main__":
-    train(1, 6, 18, 1, 1219, 1196)
+    train(1, 6, 18, 1, 1196, 1219, 500)

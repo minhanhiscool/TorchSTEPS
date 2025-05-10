@@ -12,7 +12,7 @@ def tradPred(init_time=datetime(2025, 4, 25, 15, 30, 0)):
         init_time (datetime, optional): Initial time of the radar data. Defaults to datetime(2025, 4, 25, 15, 30, 0).
 
     Returns:
-        List[np.array]: a list of original rainfall training data
+        List[np.array]: a list of original rainfall data
         List[np.array]: a list of extrapolated rainfall data
         List[np.array]: a list of ANVIL prediction
         List[np.array]: a list of STEP prediction
@@ -31,7 +31,7 @@ def tradPred(init_time=datetime(2025, 4, 25, 15, 30, 0)):
     anvil = nowcasts.get_method("anvil")
     steps = nowcasts.get_method("steps")
 
-    n_leadtimes = 12
+    n_leadtimes = 18
 
     precip_nowcast_extrapolation = extrapolate(
         rainfall_stack[-1], motion_field, n_leadtimes
@@ -54,7 +54,7 @@ def tradPred(init_time=datetime(2025, 4, 25, 15, 30, 0)):
     precip_nowcast_steps_mean = np.mean(precip_nowcast_steps, axis=0)
 
     return (
-        training_data,
+        rainfall_stack,
         precip_nowcast_extrapolation,
         precip_nowcast_anvil,
         precip_nowcast_steps_mean,
