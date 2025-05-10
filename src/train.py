@@ -3,7 +3,7 @@ import os
 import torch
 from torch.utils.data import DataLoader
 from torch import nn, optim
-from misc import random_time
+from misc import resize_batch, random_time
 from dataset import RadarDataset
 from torch.utils.tensorboard import SummaryWriter
 
@@ -46,8 +46,8 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
     train_times, val_times = all_times[:400], all_times[400:]
 
     # Defines the dataset
-    train_dataset = RadarDataset(train_times, T_in, T_out)
-    val_dataset = RadarDataset(val_times, T_in, T_out)
+    train_dataset = RadarDataset(train_times, T_in, T_out, H, W)
+    val_dataset = RadarDataset(val_times, T_in, T_out, H, W)
 
     # Loads data for training and validating
     train_loader = DataLoader(train_dataset, batch_size=B, shuffle=True)
@@ -78,6 +78,14 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
                 m3.to(device),
                 ground_truth.to(device),
             )
+
+            # I hate resize_batch
+            x = resize_batch(x)
+            m1 = resize_batch(m1)
+            m2 = resize_batch(m2)
+            m3 = resize_batch(m3)
+            ground_truth = resize_batch(ground_truth)
+
             torch.nan_to_num(input=m1, nan=0.0, out=m1)
             torch.nan_to_num(input=m2, nan=0.0, out=m2)
             torch.nan_to_num(input=m3, nan=0.0, out=m3)
@@ -107,6 +115,14 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
                     m3.to(device),
                     ground_truth.to(device),
                 )
+
+                # I still hate resize_batch
+                x = resize_batch(x)
+                m1 = resize_batch(m1)
+                m2 = resize_batch(m2)
+                m3 = resize_batch(m3)
+                ground_truth = resize_batch(ground_truth)
+
                 torch.nan_to_num(input=m1, nan=0.0, out=m1)
                 torch.nan_to_num(input=m2, nan=0.0, out=m2)
                 torch.nan_to_num(input=m3, nan=0.0, out=m3)

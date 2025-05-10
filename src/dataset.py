@@ -3,7 +3,6 @@ from torch.utils.data import Dataset
 from datetime import timedelta
 from pySTEPS.loadRadar import loadRadar
 from pySTEPS.tradPred import tradPred
-from misc import resize_batch
 
 
 class RadarDataset(Dataset):
@@ -26,8 +25,7 @@ class RadarDataset(Dataset):
         )
 
         def to_tensor(arr):
-            t = torch.tensor(arr).unsqueeze(1).float()
-            return resize_batch(t)
+            return torch.tensor(arr).unsqueeze(1).float()
 
         return (
             to_tensor(x),

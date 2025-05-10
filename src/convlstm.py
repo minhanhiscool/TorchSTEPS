@@ -202,6 +202,7 @@ class ConvLSTM(nn.Module):
 
         if aux_tensor is None:
             aux_tensor = torch.zeros(b, seq_len, 3, h, w)
+            aux_tensor = aux_tensor.to(input_tensor.device)
 
         for layer_idx in range(self.num_layers):
             h, c = hidden_state[layer_idx]
