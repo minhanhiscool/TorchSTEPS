@@ -42,8 +42,8 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
     )
 
     # Generates a random time for the train and validation datasets
-    all_times = [random_time() for _ in range(500)]
-    train_times, val_times = all_times[:400], all_times[400:]
+    all_times = [random_time() for _ in range(100)]
+    train_times, val_times = all_times[:80], all_times[80:]
 
     # Defines the dataset
     train_dataset = RadarDataset(train_times, T_in, T_out, H, W)
