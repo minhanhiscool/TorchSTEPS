@@ -4,11 +4,38 @@ import random
 import torch
 from torch.utils.data import DataLoader
 from torch import nn, optim
+import torch.nn.functional as F
 from misc import resize_batch, all_time
 from dataset import RadarDataset
 from torch.utils.tensorboard import SummaryWriter
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def custom_mse(pred, target, threshold=0.0033, alpha=0.3, beta=0.7):
+    """
+    A custom loss function to compute the loss between the predictions and the ground truth
+
+    Args:
+        pred (Tensor): Predictions from the model
+        target (Tensor): Ground truth from the dataset
+        threshold (float, optional): Threshold for the loss function. Default is 0.0033
+        alpha (float, optional): Weight for the MSE loss. Default is 0.3
+        beta (float, optional): Weight for the threshold loss. Default is 0.7
+
+    Returns:
+        Tensor: The loss between the predictions and the ground truth
+    """
+
+    def threshold_loss(pred, target, threshold):
+        mask = target > threshold
+        if mask.sum() == 0:
+            return torch.tensor(0.0, device=pred.device)
+        return ((pred - target) ** 2)[mask].mean()
+
+    mse = F.mse_loss(pred, target)
+    threshold_mse = threshold_loss(pred, target, threshold)
+    return alpha * mse + beta * threshold_mse
 
 
 def log_video(pred, ground_truth, writer):
@@ -53,7 +80,6 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
 
     # Defines all of the juicy stuff for training
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    criterion = nn.MSELoss()
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode="min", factor=0.5, patience=5, verbose=True
     )
@@ -109,7 +135,7 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
             out = model(x, m1, m2, m3, ground_truth)
 
             # Calculate loss
-            loss = criterion(out, ground_truth)
+            loss = custom_mse(out, ground_truth)
 
             log_video(out, ground_truth, writer)
 
@@ -163,7 +189,7 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
 
                 # Forward pass and calculate loss
                 out = model(x, m1, m2, m3)
-                loss = criterion(out, ground_truth)
+                loss = custom_mse(out, ground_truth)
                 val_loss += loss.item()
 
                 log_video(out, ground_truth, writer)
