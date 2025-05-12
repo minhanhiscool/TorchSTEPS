@@ -21,15 +21,28 @@ git clone https://github.com/minhanhiscoolish/TorchSTEPS
 ```
 cd TorchSTEPS
 python3 -m venv venv
+source venv/bin/activate
 ```
 Install the required packages:
 ```
 pip install -r requirements.txt
 ```
 
-## Usage (WIP)
+> [!NOTE]
+> The requirements.txt **DOES NOT** have torch installed. It should be installed separately depending on your hardware
+> ```
+> pip install torch torchvision torchaudio
+> ```
+
+## Usage
+First, collect data bulk from NEA website:
 ```
-python3 src/main.py
+python3 src/pySTEPS/grabRadarSGBulk.py
+```
+Afterwards, you are ready to train:
+```
+cd src
+python3 train.py
 ```
 ## Contributing
 
@@ -66,9 +79,6 @@ This code can fetch and process data from the NEA website, which by its Terms of
 or **informational** purposes (Clause 4.3).
 
 **We do NOT distribute NEA’s data**. You must download it yourself:
-```
-python3 src/grabRadarSG.py
-```
 By running that, you confirm you’re using the data under NEA’s non‑commercial license.
 
 ## Contributors
