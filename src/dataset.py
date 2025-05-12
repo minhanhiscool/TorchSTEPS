@@ -2,6 +2,7 @@ import torch
 from torch.utils.data import Dataset
 from datetime import timedelta
 from pySTEPS.loadRadar import loadRadar
+from pySTEPS.displayRadar import displayRadar
 from pySTEPS.tradPred import tradPred
 
 
@@ -24,8 +25,22 @@ class RadarDataset(Dataset):
             init_time + timedelta(minutes=5 * self.T_in), n_images=self.T_out
         )
 
+        displayRadar(x, "Radar", init_time)
+        displayRadar(
+            extrap, "Extrapolation", init_time + timedelta(minutes=5 * self.T_in)
+        )
+        displayRadar(anvil, "Anvil", init_time + timedelta(minutes=5 * self.T_in))
+        displayRadar(steps, "STEPS", init_time + timedelta(minutes=5 * self.T_in))
+        displayRadar(
+            ground_truth, "Ground truth", init_time + timedelta(minutes=5 * self.T_in)
+        )
+
         def to_tensor(arr):
-            return torch.tensor(arr).unsqueeze(1).float()
+            t = torch.tensor(arr).unsqueeze(1).float()
+            t = torch.nan_to_num(t, nan=0.0)
+            t = torch.clamp(t, min=0.0, max=150.0)
+            t = t / 150.0
+            return t
 
         return (
             to_tensor(x),

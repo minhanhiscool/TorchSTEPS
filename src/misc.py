@@ -23,20 +23,20 @@ def resize_batch(x, H_out=512, W_out=512):
     return x.view(B, T, C, H_out, W_out)
 
 
-def random_time():
+def all_time():
     """
-    Produces a random time between 2025-04-16 13:45 and 2025-04-26 10:15
+    Produces a list of all times between 2025-04-16 14:30 and 2025-04-26 12:30
 
     Returns:
-        datetime: A random datetime between 2025-04-16 13:45 and 2025-04-26 10:15
+        List[datetime]: List of all times
     """
-    start_time = datetime(2025, 4, 16, 13, 45)
-    end_time = datetime(2025, 4, 26, 10, 15)
+    start_time = datetime(2025, 4, 16, 14, 30)
+    end_time = datetime(2025, 4, 26, 12, 30)
 
-    delta = timedelta(minutes=5)
-    num_steps = int((end_time - start_time) / delta)
+    total_minutes = int(end_time.timestamp() - start_time.timestamp()) // 60
+    all_time_list = [
+        start_time + timedelta(minutes=i * 5) for i in range(total_minutes // 5 + 1)
+    ]
 
-    random_step = random.randint(0, num_steps - 1)
-    random_time = start_time + random_step * delta
-
-    return random_time
+    random.shuffle(all_time_list)
+    return all_time_list

@@ -1,13 +1,31 @@
 from torchLSTM import ConvLSTM_Encoder_Decoder
 import os
+import random
 import torch
 from torch.utils.data import DataLoader
 from torch import nn, optim
-from misc import resize_batch, random_time
+from misc import resize_batch, all_time
 from dataset import RadarDataset
 from torch.utils.tensorboard import SummaryWriter
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def log_video(pred, ground_truth, writer):
+    """
+    Logging function to log the predictions and ground truth videos to tensorboard
+
+    Args:
+        pred (Tensor): Predictions from the model
+        ground_truth (Tensor): Ground truth from the dataset
+    """
+    B, T, C, H, W = pred.shape
+    from torchvision.utils import make_grid
+
+    pred_grid = make_grid(pred.reshape(B * T, C, H, W).clamp(0, 1), nrow=T)
+    gt_grid = make_grid(ground_truth.reshape(B * T, C, H, W).clamp(0, 1), nrow=T)
+    writer.add_image("Val/Grid_Predictions", pred_grid, global_step=0)
+    writer.add_image("Val/Grid_GroundTruth", gt_grid, global_step=0)
 
 
 def train(B, T_in, T_out, C, H, W, num_epoch=1000):
@@ -15,7 +33,6 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
     Training Loop for torchLSTM
     The training loop is a for loop that iterates over the number of epochs given
     It loads using dataset.py the train and validation datasets (see dataset.py for further info)
-
     Then trains the model using the dataset given
 
     Args:
@@ -35,23 +52,14 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
     model = model.to(device)
 
     # Defines all of the juicy stuff for training
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
     criterion = nn.MSELoss()
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode="min", factor=0.5, patience=5, verbose=True
     )
 
     # Generates a random time for the train and validation datasets
-    all_times = [random_time() for _ in range(100)]
-    train_times, val_times = all_times[:80], all_times[80:]
-
-    # Defines the dataset
-    train_dataset = RadarDataset(train_times, T_in, T_out, H, W)
-    val_dataset = RadarDataset(val_times, T_in, T_out, H, W)
-
-    # Loads data for training and validating
-    train_loader = DataLoader(train_dataset, batch_size=B, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=B, shuffle=False)
+    all_times = all_time()
 
     # Misc stuff, like defining TensorBoard and save directories
     writer = SummaryWriter(log_dir="../runs")
@@ -62,14 +70,24 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
 
     # Core of the function
     for epoch in range(num_epoch):
-        model.train()  # Sets the model in training mode
-
         # Defines loss
         train_loss = 0.0
         val_loss = 0.0
 
+        model.train()  # Sets the model in training mode
+
+        training_times = all_times[:2284]
+        random.shuffle(training_times)
+        train_dataset = RadarDataset(training_times[:80], T_in, T_out, H, W)
+        train_loader = DataLoader(train_dataset, batch_size=B, shuffle=False)
+
+        os.system(
+            f"tmux set -g status-right 'Epoch {epoch + 1}/{num_epoch} | "
+            f"Batch {1}/{len(train_loader)} | Training'"
+        )
+
         # Iterates over the training data
-        for x, m1, m2, m3, ground_truth in train_loader:
+        for idx, (x, m1, m2, m3, ground_truth) in enumerate(train_loader):
             # Prepare data for final time to feed into ConvLSTM_Encoder_Decoder
             x, m1, m2, m3, ground_truth = (
                 x.to(device),
@@ -78,7 +96,6 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
                 m3.to(device),
                 ground_truth.to(device),
             )
-
             # I hate resize_batch
             x = resize_batch(x)
             m1 = resize_batch(m1)
@@ -86,15 +103,19 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
             m3 = resize_batch(m3)
             ground_truth = resize_batch(ground_truth)
 
-            torch.nan_to_num(input=m1, nan=0.0, out=m1)
-            torch.nan_to_num(input=m2, nan=0.0, out=m2)
-            torch.nan_to_num(input=m3, nan=0.0, out=m3)
+            print("All tensors are ready!")
 
             # Forward pass
             out = model(x, m1, m2, m3, ground_truth)
 
             # Calculate loss
             loss = criterion(out, ground_truth)
+
+            log_video(out, ground_truth, writer)
+
+            print(
+                f"Epoch {epoch + 1}/{num_epoch} | Batch {idx + 1}/{len(train_loader)} | Loss: {loss.item():.4f}"
+            )
 
             # Backprop the model
             optimizer.zero_grad()
@@ -104,9 +125,24 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
 
             train_loss += loss.item()
 
+            os.system(
+                f"tmux set -g status-right 'Epoch {epoch + 1}/{num_epoch} | "
+                f"Batch {idx + 2}/{len(train_loader)} | Training'"
+            )
         model.eval()  # Sets the model in evaluation mode
+
+        val_times = all_times[2284:]
+        random.shuffle(val_times)
+        val_dataset = RadarDataset(val_times[:20], T_in, T_out, H, W)
+        val_loader = DataLoader(val_dataset, batch_size=B, shuffle=False)
+
+        os.system(
+            f"tmux set -g status-right 'Epoch {epoch + 1}/{num_epoch} | "
+            f"Batch {1}/{len(val_loader)} | Evaluating'"
+        )
+
         with torch.no_grad():
-            for x, m1, m2, m3, ground_truth in val_loader:
+            for idx, (x, m1, m2, m3, ground_truth) in enumerate(val_loader):
                 # Prepare data
                 x, m1, m2, m3, ground_truth = (
                     x.to(device),
@@ -123,14 +159,23 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
                 m3 = resize_batch(m3)
                 ground_truth = resize_batch(ground_truth)
 
-                torch.nan_to_num(input=m1, nan=0.0, out=m1)
-                torch.nan_to_num(input=m2, nan=0.0, out=m2)
-                torch.nan_to_num(input=m3, nan=0.0, out=m3)
+                print("All tensors are ready!")
 
                 # Forward pass and calculate loss
                 out = model(x, m1, m2, m3)
                 loss = criterion(out, ground_truth)
                 val_loss += loss.item()
+
+                log_video(out, ground_truth, writer)
+
+                print(
+                    f"Epoch {epoch + 1}/{num_epoch} | Batch {idx + 1}/{len(val_loader)} | Loss: {loss.item():.4f}"
+                )
+
+                os.system(
+                    f"tmux set -g status-right 'Epoch {epoch + 1}/{num_epoch} | "
+                    f"Batch {idx + 2}/{len(val_loader)} | Evaluating'"
+                )
 
         # Get the average loss
         train_loss /= len(train_loader)
