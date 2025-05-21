@@ -4,7 +4,6 @@ import random
 import torch
 from torch.utils.data import DataLoader
 from torch import nn, optim
-import torch.nn.functional as F
 from misc import resize_batch, all_time
 from dataset import RadarDataset
 from torch.utils.tensorboard import SummaryWriter
@@ -12,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def custom_mse(pred, target, threshold=0.0033, alpha=0.3, beta=0.7):
+def custom_mse(pred, target, threshold=0.0033, alpha=0.3, beta=0.7, mode="linear"):
     """
     A custom loss function to compute the loss between the predictions and the ground truth
 
@@ -22,20 +21,54 @@ def custom_mse(pred, target, threshold=0.0033, alpha=0.3, beta=0.7):
         threshold (float, optional): Threshold for the loss function. Default is 0.0033
         alpha (float, optional): Weight for the MSE loss. Default is 0.3
         beta (float, optional): Weight for the threshold loss. Default is 0.7
+        mode (str, optional): Mode for the threshold loss. Accepts "linear" and "exponential". Default is "linear"
 
     Returns:
         Tensor: The loss between the predictions and the ground truth
     """
 
+    B, T, C, H, W = pred.shape
+    if mode == "linear":
+        weights = torch.linspace(1.0, 5.0, T).view(1, T, 1, 1, 1).to(device)
+    elif mode == "exponential":
+        weights = (
+            torch.tensor([(1.2**i) for i in range(T)]).view(1, T, 1, 1, 1).to(device)
+        )
+    else:
+        raise ValueError("Mode must be either 'linear' or 'exponential'")
+
     def threshold_loss(pred, target, threshold):
         mask = target > threshold
         if mask.sum() == 0:
             return torch.tensor(0.0, device=pred.device)
-        return ((pred - target) ** 2)[mask].mean()
+        return (((pred - target) ** 2) * weights)[mask].mean()
 
-    mse = F.mse_loss(pred, target)
+    mse = (((pred - target) ** 2) * weights).mean()
     threshold_mse = threshold_loss(pred, target, threshold)
     return alpha * mse + beta * threshold_mse
+
+
+def csi_score(pred, target, threshold=0.0033):
+    """
+    The CSI score for a given prediction and target
+    Args:
+        pred (Tensor): Predictions from the model
+        target (Tensor): Ground truth from the dataset
+        threshold (float, optional): Threshold for the loss function. Default is 0.0033
+    """
+    pred_bin = (pred > threshold).float()
+    target_bin = (target > threshold).float()
+
+    TP = pred_bin * target_bin
+    FP = pred_bin * (1 - target_bin)
+    FN = (1 - pred_bin) * target_bin
+
+    TP_sum = TP.sum(dim=[0, 2, 3, 4])
+    FP_sum = FP.sum(dim=[0, 2, 3, 4])
+    FN_sum = FN.sum(dim=[0, 2, 3, 4])
+
+    csi = TP_sum / (TP_sum + FP_sum + FN_sum + 1e-6)
+    return csi.mean()
 
 
 def log_video(pred, ground_truth, writer):
@@ -86,6 +119,7 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
 
     # Generates a random time for the train and validation datasets
     all_times = all_time()
+    bound = int(len(all_times) * 0.8)
 
     # Misc stuff, like defining TensorBoard and save directories
     writer = SummaryWriter(log_dir="../runs")
@@ -98,13 +132,12 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
     for epoch in range(num_epoch):
         # Defines loss
         train_loss = 0.0
-        val_loss = 0.0
 
         model.train()  # Sets the model in training mode
 
-        training_times = all_times[:2284]
+        training_times = all_times[:bound]
         random.shuffle(training_times)
-        train_dataset = RadarDataset(training_times[:80], T_in, T_out, H, W)
+        train_dataset = RadarDataset(training_times[:20], T_in, T_out, H, W)
         train_loader = DataLoader(train_dataset, batch_size=B, shuffle=False)
 
         os.system(
@@ -157,9 +190,12 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
             )
         model.eval()  # Sets the model in evaluation mode
 
-        val_times = all_times[2284:]
+        val_loss_mse = 0.0
+        val_loss_csi = 0.0
+
+        val_times = all_times[bound:]
         random.shuffle(val_times)
-        val_dataset = RadarDataset(val_times[:20], T_in, T_out, H, W)
+        val_dataset = RadarDataset(val_times[:10], T_in, T_out, H, W)
         val_loader = DataLoader(val_dataset, batch_size=B, shuffle=False)
 
         os.system(
@@ -189,13 +225,15 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
 
                 # Forward pass and calculate loss
                 out = model(x, m1, m2, m3)
-                loss = custom_mse(out, ground_truth)
-                val_loss += loss.item()
+                loss_mse = custom_mse(out, ground_truth)
+                loss_csi = csi_score(out, ground_truth)
+                val_loss_mse += loss_mse.item()
+                val_loss_csi += loss_csi.item()
 
                 log_video(out, ground_truth, writer)
 
                 print(
-                    f"Epoch {epoch + 1}/{num_epoch} | Batch {idx + 1}/{len(val_loader)} | Loss: {loss.item():.4f}"
+                    f"Epoch {epoch + 1}/{num_epoch} | Batch {idx + 1}/{len(val_loader)} | Loss: {loss_mse.item():.4f}"
                 )
 
                 os.system(
@@ -205,26 +243,28 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
 
         # Get the average loss
         train_loss /= len(train_loader)
-        val_loss /= len(val_loader)
+        val_loss_mse /= len(val_loader)
+        val_loss_csi /= len(val_loader)
 
         # Log the losses
         writer.add_scalar("Training Loss", train_loss, epoch)
-        writer.add_scalar("Validation Loss", val_loss, epoch)
+        writer.add_scalar("Validation Loss - MSE", val_loss_mse, epoch)
+        writer.add_scalar("Validation Loss - CSI", val_loss_csi, epoch)
 
         # Fallback if TensorBoard doesn't work
         print(
-            f"Epoch {epoch}/{num_epoch} | Training Loss: {train_loss} | Validation Loss: {val_loss}"
+            f"Epoch {epoch}/{num_epoch} | Training Loss: {train_loss} | Validation Loss - MSE: {val_loss_mse} | Validation Loss - CSI: {val_loss_csi}"
         )
 
         for param_group in optimizer.param_groups:
             writer.add_scalar("Learning Rate", param_group["lr"], epoch)
 
         # Found best model? Save it!
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        if val_loss_mse < best_val_loss:
+            best_val_loss = val_loss_mse
             torch.save(model.state_dict(), model_dir + "best_model.pt")
 
-        scheduler.step(val_loss)
+        scheduler.step(val_loss_mse)
 
 
 if __name__ == "__main__":

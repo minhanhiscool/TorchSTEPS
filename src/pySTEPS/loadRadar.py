@@ -101,7 +101,7 @@ def loadRadar(initial_time, n_images=6):
             print("!!! WARNING: Image not found: ", full_path)
             continue
 
-        # COnvert image to an 3D numpy array
+        # Convert image to an 3D numpy array
         img_array = np.array(Image.open(full_path).convert("RGB"))
 
         rainfall = np.zeros(
