@@ -1,6 +1,5 @@
 from torchLSTM import ConvLSTM_Encoder_Decoder
 import os
-import random
 import torch
 from torch.utils.data import DataLoader
 from torch import nn, optim
@@ -29,7 +28,7 @@ def custom_mse(pred, target, threshold=0.0033, alpha=0.3, beta=0.7, mode="linear
 
     B, T, C, H, W = pred.shape
     if mode == "linear":
-        weights = torch.linspace(1.0, 5.0, T).view(1, T, 1, 1, 1).to(device)
+        weights = torch.linspace(10.0, 1.0, T).view(1, T, 1, 1, 1).to(device)
     elif mode == "exponential":
         weights = (
             torch.tensor([(1.2**i) for i in range(T)]).view(1, T, 1, 1, 1).to(device)
@@ -114,12 +113,19 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
     # Defines all of the juicy stuff for training
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="min", factor=0.5, patience=5, verbose=True
+        optimizer, mode="min", factor=0.5, patience=5
     )
 
     # Generates a random time for the train and validation datasets
     all_times = all_time()
     bound = int(len(all_times) * 0.8)
+
+    train_dataset = RadarDataset(all_times[:bound], T_in, T_out, H, W)
+    train_loader = DataLoader(train_dataset, batch_size=B, shuffle=True)
+
+    val_dataset = RadarDataset(all_times[bound:], T_in, T_out, H, W)
+
+    val_loader = DataLoader(val_dataset, batch_size=B, shuffle=True)
 
     # Misc stuff, like defining TensorBoard and save directories
     writer = SummaryWriter(log_dir="../runs")
@@ -134,11 +140,6 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
         train_loss = 0.0
 
         model.train()  # Sets the model in training mode
-
-        training_times = all_times[:bound]
-        random.shuffle(training_times)
-        train_dataset = RadarDataset(training_times[:20], T_in, T_out, H, W)
-        train_loader = DataLoader(train_dataset, batch_size=B, shuffle=False)
 
         os.system(
             f"tmux set -g status-right 'Epoch {epoch + 1}/{num_epoch} | "
@@ -165,19 +166,19 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
             print("All tensors are ready!")
 
             # Forward pass
-            out = model(x, m1, m2, m3, ground_truth)
+            out = model(x, m1, m2, m3, ground_truth=ground_truth)
 
             # Calculate loss
             loss = custom_mse(out, ground_truth)
 
-            log_video(out, ground_truth, writer)
+            log_video(out.detach(), ground_truth.detach(), writer)
 
             print(
                 f"Epoch {epoch + 1}/{num_epoch} | Batch {idx + 1}/{len(train_loader)} | Loss: {loss.item():.4f}"
             )
 
             # Backprop the model
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
@@ -192,11 +193,6 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
 
         val_loss_mse = 0.0
         val_loss_csi = 0.0
-
-        val_times = all_times[bound:]
-        random.shuffle(val_times)
-        val_dataset = RadarDataset(val_times[:10], T_in, T_out, H, W)
-        val_loader = DataLoader(val_dataset, batch_size=B, shuffle=False)
 
         os.system(
             f"tmux set -g status-right 'Epoch {epoch + 1}/{num_epoch} | "
@@ -255,14 +251,16 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
         print(
             f"Epoch {epoch}/{num_epoch} | Training Loss: {train_loss} | Validation Loss - MSE: {val_loss_mse} | Validation Loss - CSI: {val_loss_csi}"
         )
-
-        for param_group in optimizer.param_groups:
-            writer.add_scalar("Learning Rate", param_group["lr"], epoch)
+        for i in scheduler.get_last_lr():
+            writer.add_scalar("Learning Rate", i, epoch)
 
         # Found best model? Save it!
         if val_loss_mse < best_val_loss:
             best_val_loss = val_loss_mse
             torch.save(model.state_dict(), model_dir + "best_model.pt")
+
+        if epoch % 10 == 0:
+            torch.save(model.state_dict(), f"{model_dir}/checkpoint_epoch{epoch}.pt")
 
         scheduler.step(val_loss_mse)
 

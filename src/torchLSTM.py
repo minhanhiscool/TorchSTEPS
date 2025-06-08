@@ -70,7 +70,7 @@ class ConvLSTM_Encoder_Decoder(nn.Module):
 
         self.teacher_forcing_ratio = 0.4
 
-    def forward(self, x, m1, m2, m3, ground_truth=None):
+    def forward(self, x, m1, m2, m3, k=6, ground_truth=None):
         """
         The forward pass function for the ConvLSTM_Encoder_Decoder model
 
@@ -81,6 +81,7 @@ class ConvLSTM_Encoder_Decoder(nn.Module):
             m1 (Tensor): Guidance model 1 tensor of shape (B, T_out, 1, H, W) (T_out is the number of output frames)
             m2 (Tensor): Guidance model 2 tensor of shape (B, T_out, 1, H, W)
             m3 (Tensor): Guidance model 3 tensor of shape (B, T_out, 1, H, W)
+            k (int, optional): Number of hidden states to keep in the graph. k = 0 will disable truncated BPTT. Default is 6
             ground_truth (Tensor, optional): Ground truth tensor of shape (B, T_out, 1, H, W) (T_out is the number of output frames) if provided, default is None
 
         Returns:
@@ -116,7 +117,8 @@ class ConvLSTM_Encoder_Decoder(nn.Module):
             inp = inp.unsqueeze(1)  # (B, 1, 4, H, W)
 
             y, dec_states = self.decoder(inp, f_expanded, dec_states)
-            dec_states = [(h.detach(), c.detach()) for h, c in dec_states]
+            if (i + 1) % k == 0:
+                dec_states = [(h.detach(), c.detach()) for h, c in dec_states]
             h = y[0].squeeze(1)
             pred = self.conv_last(h)
             output.append(pred.unsqueeze(1))

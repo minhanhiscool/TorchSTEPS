@@ -39,4 +39,4 @@ def all_time():
     ]
 
     random.shuffle(all_time_list)
-    return all_time_list[:100]
+    return all_time_list

@@ -3,12 +3,12 @@ import torch
 
 
 class PixelGating(nn.Module):
-    def __init__(self, n_experts):
+    def __init__(self, aux_tensor):
         super(PixelGating, self).__init__()
         self.net = nn.Sequential(
-            nn.Conv2d(n_experts, 16, 3, padding=1),
+            nn.Conv2d(aux_tensor, 16, 3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(16, n_experts, 1),
+            nn.Conv2d(16, aux_tensor, 1),
         )
         self.sm = nn.Softmax(dim=1)
         self.proj = nn.Conv2d(19, 16, 1)
@@ -165,7 +165,7 @@ class ConvLSTM(nn.Module):
             )
 
         self.cell_list = nn.ModuleList(cell_list)
-        self.fusion = PixelGating(n_experts=19)
+        self.fusion = PixelGating(aux_tensor=19)
 
     def forward(self, input_tensor, aux_tensor=None, hidden_state=None):
         """
