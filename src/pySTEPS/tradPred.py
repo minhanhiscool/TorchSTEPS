@@ -29,7 +29,7 @@ def tradPred(init_time=datetime(2025, 4, 25, 15, 30, 0)):
     anvil = nowcasts.get_method("anvil")
     steps = nowcasts.get_method("steps")
 
-    n_leadtimes = 18
+    n_leadtimes = 12
 
     precip_nowcast_extrapolation = extrapolate(
         rainfall_stack[-1], motion_field, n_leadtimes

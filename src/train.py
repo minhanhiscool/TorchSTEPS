@@ -3,7 +3,7 @@ import os
 import torch
 from torch.utils.data import DataLoader
 from torch import nn, optim
-from misc import resize_batch, all_time
+from misc import all_time
 from dataset import RadarDataset
 from torch.utils.tensorboard import SummaryWriter
 
@@ -140,12 +140,6 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
         train_loss = 0.0
 
         model.train()  # Sets the model in training mode
-
-        os.system(
-            f"tmux set -g status-right 'Epoch {epoch + 1}/{num_epoch} | "
-            f"Batch {1}/{len(train_loader)} | Training'"
-        )
-
         # Iterates over the training data
         for idx, (x, m1, m2, m3, ground_truth) in enumerate(train_loader):
             # Prepare data for final time to feed into ConvLSTM_Encoder_Decoder
@@ -157,12 +151,6 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
                 ground_truth.to(device),
             )
             # I hate resize_batch
-            x = resize_batch(x)
-            m1 = resize_batch(m1)
-            m2 = resize_batch(m2)
-            m3 = resize_batch(m3)
-            ground_truth = resize_batch(ground_truth)
-
             print("All tensors are ready!")
 
             # Forward pass
@@ -171,7 +159,8 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
             # Calculate loss
             loss = custom_mse(out, ground_truth)
 
-            log_video(out.detach(), ground_truth.detach(), writer)
+            if idx == len(train_loader) - 1:
+                log_video(out.detach(), ground_truth.detach(), writer)
 
             print(
                 f"Epoch {epoch + 1}/{num_epoch} | Batch {idx + 1}/{len(train_loader)} | Loss: {loss.item():.4f}"
@@ -184,20 +173,10 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
             optimizer.step()
 
             train_loss += loss.item()
-
-            os.system(
-                f"tmux set -g status-right 'Epoch {epoch + 1}/{num_epoch} | "
-                f"Batch {idx + 2}/{len(train_loader)} | Training'"
-            )
         model.eval()  # Sets the model in evaluation mode
 
         val_loss_mse = 0.0
         val_loss_csi = 0.0
-
-        os.system(
-            f"tmux set -g status-right 'Epoch {epoch + 1}/{num_epoch} | "
-            f"Batch {1}/{len(val_loader)} | Evaluating'"
-        )
 
         with torch.no_grad():
             for idx, (x, m1, m2, m3, ground_truth) in enumerate(val_loader):
@@ -210,13 +189,6 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
                     ground_truth.to(device),
                 )
 
-                # I still hate resize_batch
-                x = resize_batch(x)
-                m1 = resize_batch(m1)
-                m2 = resize_batch(m2)
-                m3 = resize_batch(m3)
-                ground_truth = resize_batch(ground_truth)
-
                 print("All tensors are ready!")
 
                 # Forward pass and calculate loss
@@ -226,15 +198,11 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
                 val_loss_mse += loss_mse.item()
                 val_loss_csi += loss_csi.item()
 
-                log_video(out, ground_truth, writer)
+                if idx == len(val_loader) - 1:
+                    log_video(out, ground_truth, writer)
 
                 print(
                     f"Epoch {epoch + 1}/{num_epoch} | Batch {idx + 1}/{len(val_loader)} | Loss: {loss_mse.item():.4f}"
-                )
-
-                os.system(
-                    f"tmux set -g status-right 'Epoch {epoch + 1}/{num_epoch} | "
-                    f"Batch {idx + 2}/{len(val_loader)} | Evaluating'"
                 )
 
         # Get the average loss
@@ -266,4 +234,4 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
 
 
 if __name__ == "__main__":
-    train(1, 6, 18, 1, 1196, 1219, 500)
+    train(1, 6, 12, 1, 512, 512, 500)

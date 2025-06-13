@@ -4,6 +4,7 @@ from datetime import timedelta
 from PIL import Image
 import numpy as np
 from pySTEPS.displayRadar import displayRadar
+from skimage.transform import resize
 
 
 # Maps color (RGB) in radar to rainfall intensity (mm/hr and dBR)
@@ -122,8 +123,21 @@ def loadRadar(initial_time, n_images=6):
             rainfall[mask] = rain
             radar_img[mask] = intensity
 
-        rainfall_images.append(rainfall)
-        radar_images.append(radar_img)
+        rainfall_resize = resize(
+            rainfall,
+            (512, 512),
+            preserve_range=True,
+            anti_aliasing=True,
+        ).astype(np.float32)
+        radar_img_resize = resize(
+            radar_img,
+            (512, 512),
+            preserve_range=True,
+            anti_aliasing=True,
+        ).astype(np.float32)
+
+        rainfall_images.append(rainfall_resize)
+        radar_images.append(radar_img_resize)
 
     # Stack the images into a 3D NumPy array: (time, height, width)
     radar_stack = np.stack(radar_images)
