@@ -42,6 +42,8 @@ color_to_rain = {
     (0, 255, 255): (0.05, 5),
 }
 
+COLOR_THRESHOLD = 10
+
 
 def generateExpectedFilenames(initial_time, n_images=25, step_minutes=5):
     """
@@ -64,6 +66,33 @@ def generateExpectedFilenames(initial_time, n_images=25, step_minutes=5):
         )
         images.append(image_filename)
     return images
+
+
+def broadcastColor(img):
+    colors = np.array(list(color_to_rain.keys()), dtype=np.uint8)
+    rain_vals = np.array([v[0] for v in color_to_rain.values()], float)
+    int_vals = np.array([v[1] for v in color_to_rain.values()], float)
+
+    h, w = img.shape[:2]
+    pix = img.reshape(-1, 3)
+
+    diff = np.abs(pix[:, None, :] - colors[None, :, :])
+    match = np.all(diff <= COLOR_THRESHOLD, axis=2)
+
+    any_match = match.any(axis=1)
+    idx = match.argmax(axis=1)
+
+    rain_flat = np.zeros(pix.shape[0], dtype=np.float32)
+    radar_flat = np.zeros(pix.shape[0], dtype=np.float32)
+
+    valid = any_match
+    rain_flat[valid] = rain_vals[idx[valid]]
+    radar_flat[valid] = int_vals[idx[valid]]
+
+    rainfall = rain_flat.reshape(h, w)
+    radar_img = radar_flat.reshape(h, w)
+
+    return rainfall, radar_img
 
 
 def loadRadar(initial_time, n_images=6):
@@ -91,7 +120,6 @@ def loadRadar(initial_time, n_images=6):
 
     radar_images = []
     rainfall_images = []
-    COLOR_THRESHOLD = 10
 
     # Loop through the images and convert them to numpy arrays
     for img in images_filenames:
@@ -105,23 +133,7 @@ def loadRadar(initial_time, n_images=6):
         # Convert image to an 3D numpy array
         img_array = np.array(Image.open(full_path).convert("RGB"))
 
-        rainfall = np.zeros(
-            (img_array.shape[0], img_array.shape[1]), dtype=np.float32()
-        )
-        radar_img = np.zeros(
-            (img_array.shape[0], img_array.shape[1]), dtype=np.float32()
-        )
-
-        # Convert each pixel to a color and assign the corresponding intensity
-        for (
-            color,
-            (rain, intensity),
-        ) in color_to_rain.items():
-            mask = np.all(
-                np.abs(img_array - np.array(color)) <= COLOR_THRESHOLD, axis=-1
-            )  # Use thresholds instead of exact values
-            rainfall[mask] = rain
-            radar_img[mask] = intensity
+        rainfall, radar_img = broadcastColor(img_array)
 
         rainfall_resize = resize(
             rainfall,
