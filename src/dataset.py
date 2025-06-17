@@ -19,6 +19,7 @@ class RadarDataset(Dataset):
     def __getitem__(self, index):
         init_time = self.times[index]
 
+        print(f"Loading data for {init_time}")
         x, extrap, anvil, steps = tradPred(init_time)
         _, ground_truth, _ = loadRadar(
             init_time + timedelta(minutes=5 * self.T_in), n_images=self.T_out

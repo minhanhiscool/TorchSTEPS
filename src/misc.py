@@ -17,6 +17,6 @@ def all_time():
     all_time_list = [
         start_time + timedelta(minutes=i * 5) for i in range(total_minutes // 5 + 1)
     ]
-
+    random.seed(42)
     random.shuffle(all_time_list)
     return all_time_list

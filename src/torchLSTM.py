@@ -68,7 +68,7 @@ class ConvLSTM_Encoder_Decoder(nn.Module):
         if bias:
             nn.init.zeros_(self.conv_last.bias)
 
-        self.teacher_forcing_ratio = 0.4
+        self.teacher_forcing_ratio = 0.2
 
     def forward(self, x, m1, m2, m3, k=6, ground_truth=None):
         """

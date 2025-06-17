@@ -83,6 +83,7 @@ def log_video(pred, ground_truth, writer):
 
     pred_grid = make_grid(pred.reshape(B * T, C, H, W).clamp(0, 1), nrow=T)
     gt_grid = make_grid(ground_truth.reshape(B * T, C, H, W).clamp(0, 1), nrow=T)
+
     writer.add_image("Val/Grid_Predictions", pred_grid, global_step=0)
     writer.add_image("Val/Grid_GroundTruth", gt_grid, global_step=0)
 
@@ -133,9 +134,22 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
     os.makedirs(model_dir, exist_ok=True)
 
     best_val_loss = float("inf")
+    epoch_start = 0
+
+    checkpoint_path = "../models/checkpoint_latest.pt"
+    if os.path.exists(checkpoint_path):
+        print(f"Loading model weights from {checkpoint_path}")
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        epoch_start = checkpoint["epoch"]
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+        best_val_loss = checkpoint["best_val_loss"]
+    else:
+        print("No checkpoint found, training from scratch.")
 
     # Core of the function
-    for epoch in range(num_epoch):
+    for epoch in range(epoch_start, num_epoch):
         # Defines loss
         train_loss = 0.0
 
@@ -159,8 +173,12 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
             # Calculate loss
             loss = custom_mse(out, ground_truth)
 
-            if idx == len(train_loader) - 1:
-                log_video(out.detach(), ground_truth.detach(), writer)
+            if idx == len(train_loader) - 1 or idx % 20 == 0:
+                log_video(
+                    out.detach(),
+                    ground_truth.detach(),
+                    writer,
+                )
 
             print(
                 f"Epoch {epoch + 1}/{num_epoch} | Batch {idx + 1}/{len(train_loader)} | Loss: {loss.item():.4f}"
@@ -173,6 +191,19 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
             optimizer.step()
 
             train_loss += loss.item()
+
+            if idx % 100 == 0:
+                torch.save(
+                    {
+                        "epoch": epoch,
+                        "model_state_dict": model.state_dict(),
+                        "optimizer_state_dict": optimizer.state_dict(),
+                        "scheduler_state_dict": scheduler.state_dict(),  # if any
+                        "best_val_loss": best_val_loss,
+                    },
+                    f"{model_dir}/checkpoint_latest.pt",
+                )
+
         model.eval()  # Sets the model in evaluation mode
 
         val_loss_mse = 0.0
@@ -198,7 +229,7 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
                 val_loss_mse += loss_mse.item()
                 val_loss_csi += loss_csi.item()
 
-                if idx == len(val_loader) - 1:
+                if idx == len(val_loader) - 1 or idx % 20 == 0:
                     log_video(out, ground_truth, writer)
 
                 print(
@@ -225,10 +256,16 @@ def train(B, T_in, T_out, C, H, W, num_epoch=1000):
         # Found best model? Save it!
         if val_loss_mse < best_val_loss:
             best_val_loss = val_loss_mse
-            torch.save(model.state_dict(), model_dir + "best_model.pt")
-
-        if epoch % 10 == 0:
-            torch.save(model.state_dict(), f"{model_dir}/checkpoint_epoch{epoch}.pt")
+            torch.save(
+                {
+                    "epoch": epoch,
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "scheduler_state_dict": scheduler.state_dict(),  # if any
+                    "best_val_loss": best_val_loss,
+                },
+                f"{model_dir}/best_model.pt",
+            )
 
         scheduler.step(val_loss_mse)
 

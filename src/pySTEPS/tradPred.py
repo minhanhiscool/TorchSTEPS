@@ -1,6 +1,7 @@
 from pysteps import motion, nowcasts
 import numpy as np
 from datetime import datetime
+from pySTEPS.displayRadar import displayRadar
 from pySTEPS.loadRadar import loadRadar
 
 
@@ -19,11 +20,13 @@ def tradPred(init_time=datetime(2025, 4, 25, 15, 30, 0)):
 
         (All List[] size are of size (T_in/T_out, H, W)
     """
+
     radar_stack, rainfall_stack, current_time = loadRadar(init_time)
+
     for i, arr in enumerate(radar_stack):
         print(f"Radar image {i} has shape {arr.shape}")
 
-    motion_field = motion.darts.DARTS(radar_stack)
+    motion_field = motion.vet.vet(radar_stack[-2:, :, :])
 
     extrapolate = nowcasts.get_method("extrapolation")
     anvil = nowcasts.get_method("anvil")
@@ -34,8 +37,14 @@ def tradPred(init_time=datetime(2025, 4, 25, 15, 30, 0)):
     precip_nowcast_extrapolation = extrapolate(
         rainfall_stack[-1], motion_field, n_leadtimes
     )
+    # Copy to avoid modifying original data
+    anvil_input = rainfall_stack[-4:].copy()
+
+    # Replace zeros and non-finite values with a small number
+    anvil_input[~np.isfinite(anvil_input)] = 0.0
+    anvil_input[anvil_input < 1e-5] = 1e-5  # Prevent log(0)
     precip_nowcast_anvil = anvil(
-        rainfall_stack[-4:],
+        anvil_input,
         motion_field,
         n_leadtimes,
         fft_method="pyfftw",
@@ -48,7 +57,7 @@ def tradPred(init_time=datetime(2025, 4, 25, 15, 30, 0)):
         n_ens_members=6,
         n_cascade_levels=6,
         precip_thr=0.5,
-        kmperpixel=1,
+        kmperpixel=2,
         timestep=5,
         noise_method="nonparametric",
         fft_method="pyfftw",

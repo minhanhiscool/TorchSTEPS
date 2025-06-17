@@ -76,8 +76,12 @@ def broadcastColor(img):
     h, w = img.shape[:2]
     pix = img.reshape(-1, 3)
 
+    is_black = np.all(pix == 0, axis=1)
+
     diff = np.abs(pix[:, None, :] - colors[None, :, :])
     match = np.all(diff <= COLOR_THRESHOLD, axis=2)
+
+    match[is_black] = False
 
     any_match = match.any(axis=1)
     idx = match.argmax(axis=1)
