@@ -1,0 +1,37 @@
+[tool.poetry]
+name = "TorchSTEPS"
+version = "0.1.0"
+description = "A WIP project using PySTEPS and PyTorch to accurately nowcast the weather"
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.8"
+
+# Nowcasting Algorithms
+pysteps = { git = "https://github.com/pySTEPS/pysteps" }
+cartopy = "*"
+
+# Machine Learning & Deep Learning
+torch = "*"
+torchvision = "*"
+torchaudio = "*"
+# For CUDA variants, you can override these manually in poetry.lock or use extras
+
+# Speed up computation
+numpy = "*"
+scipy = "*"
+pyfftw = "*"
+
+# Misc
+requests = "*"
+scikit-image = "*"
+
+# Logging
+tensorboard = "*"
+matplotlib = "*"
+tqdm = "*"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
