@@ -6,16 +6,16 @@ readme = "README.md"
 package-mode = false
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 
 # Nowcasting Algorithms
 pysteps = { git = "https://github.com/pySTEPS/pysteps" }
 cartopy = "*"
 
 # Machine Learning & Deep Learning
-torch = "*"
-torchvision = "*"
-torchaudio = "*"
+torch = { version = "^2.0.1", source = "pytorch-cpu" }
+torchvision = { version = ">=0.15.2", source = "pytorch-cpu" }
+torchaudio = { version = "^2.0.2", source = "pytorch-cpu" }
 # For CUDA variants, you can override these manually in poetry.lock or use extras
 
 # Speed up computation
@@ -31,6 +31,11 @@ scikit-image = "*"
 tensorboard = "*"
 matplotlib = "*"
 tqdm = "*"
+
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
 
 [build-system]
 requires = ["poetry-core"]
